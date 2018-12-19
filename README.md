@@ -13,17 +13,17 @@ macOS + VirtualBox 5.1.28 + Vagrant 2.0.0で動作確認済です。
 
 ## rsync *.go files and Makefile (in HOST)
 ```sh
-  config.vm.synced_folder "./", "/home/isucon/webapp/go/", type: "rsync",
+  config.vm.synced_folder "./", "/home/isucon/isubata/webapp/go/", type: "rsync",
     owner: "isucon",
     group: "isucon",
-    rsync__args: ["-a", "--include=*.go", "--include=Makefile", "--exclude=*"]
+    rsync__args: ["-a", "--include=src/isubata/*.go", "--include=src/isubata/views/*", "--include=Makefile", "--exclude=*"]
 ```
 
 
 ## watch .go files, and execute make command (in GUEST)
 ```sh
 sudo apt install -y inotify-tools
-inotifywait -e modify -mr /home/isucon/webapp/go | while read;do while read -t 0.5;do :;done;make -C /home/isucon/webapp/go ;done
+inotifywait -e modify -mr /home/isucon/isubata/webapp/go | while read;do while read -t 0.5;do :;done;make -C /home/isucon/isubata/webapp/go ;done
 ```
 
 
@@ -52,7 +52,7 @@ sudo systemctl disable firewalld
 
 ## logging (GUEST)
 ```sh
-sudo journalctl -u isuda.go.service -ef
+sudo journalctl -u isubata.golang.service -ef
 ```
 
 
