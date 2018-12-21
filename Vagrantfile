@@ -50,7 +50,7 @@ Vagrant.configure("2") do |config|
   config.vm.synced_folder "./", "/home/isucon/isubata/webapp/go/", type: "rsync",
     owner: "isucon",
     group: "isucon",
-    rsync__args: ["-a", "--include=src/isubata/*.go", "--include=src/isubata/views/*", "--include=Makefile", "--exclude=*"]
+    rsync__args: ["-av", "--include=Makefile", "--include=src/***", "--exclude=*"]
 
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.
@@ -67,7 +67,8 @@ Vagrant.configure("2") do |config|
   # View the documentation for the provider you are using for more
   # information on available options.
   config.vm.provider "virtualbox" do |vb|
-    vb.memory = "1100"
+    vb.cpus = 1
+    vb.memory = 1100
   end
 
   # Enable provisioning with a shell script. Additional provisioners such as

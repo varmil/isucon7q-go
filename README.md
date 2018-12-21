@@ -16,7 +16,15 @@ macOS + VirtualBox 5.1.28 + Vagrant 2.0.0で動作確認済です。
   config.vm.synced_folder "./", "/home/isucon/isubata/webapp/go/", type: "rsync",
     owner: "isucon",
     group: "isucon",
-    rsync__args: ["-a", "--include=src/isubata/*.go", "--include=src/isubata/views/*", "--include=Makefile", "--exclude=*"]
+    rsync__args: ["-av", "--include=Makefile", "--include=src/***", "--exclude=*"]
+```
+
+```sh
+# strict filter style
+rsync -av ./ i7q:/home/isucon/isubata/webapp/go/ --include=Makefile --include=src/ --include=isubata/ --include=*.go --include=views/***  --exclude=*
+
+# include all files
+rsync -av ./ i7q:/home/isucon/isubata/webapp/go/ --include=Makefile --include=src/***  --exclude=*
 ```
 
 
