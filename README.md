@@ -35,6 +35,14 @@ inotifywait -e modify -mr /home/isucon/isubata/webapp/go | while read;do while r
 ```
 
 
+## modify Makefile to restart server when built (in GUEST)
+```sh
+build:
+	go build -v isubata
+	sudo systemctl restart isubata.golang.service
+```
+
+
 ## pprof (in GUEST)
 ```sh
 # app.goのimportに追加
