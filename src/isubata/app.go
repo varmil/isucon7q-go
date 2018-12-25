@@ -455,6 +455,7 @@ func fetchUnread(c echo.Context) error {
 	resp := []map[string]interface{}{}
 
 	for _, chID := range channels {
+		// TODO: tuning
 		lastID, err := queryHaveRead(userID, chID)
 		if err != nil {
 			return err
@@ -466,6 +467,7 @@ func fetchUnread(c echo.Context) error {
 				"SELECT COUNT(*) as cnt FROM message WHERE channel_id = ? AND ? < id",
 				chID, lastID)
 		} else {
+			// TODO: tuning
 			err = db.Get(&cnt,
 				"SELECT COUNT(*) as cnt FROM message WHERE channel_id = ?",
 				chID)
@@ -665,12 +667,7 @@ func postProfile(c echo.Context) error {
 	}
 
 	if avatarName != "" && len(avatarData) > 0 {
-		// TODO: not use db, but file
-		// _, err := db.Exec("INSERT INTO image (name, data) VALUES (?, ?)", avatarName, avatarData)
-		// if err != nil {
-		// 	return err
-		// }
-
+		// USE FILE
 		{
 			file, err := os.Create(`/home/isucon/isubata/webapp/public/icons/` + avatarName)
 			if err != nil {
