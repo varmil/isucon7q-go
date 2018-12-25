@@ -665,6 +665,7 @@ func postProfile(c echo.Context) error {
 	}
 
 	if avatarName != "" && len(avatarData) > 0 {
+		// TODO: not use db, but file
 		_, err := db.Exec("INSERT INTO image (name, data) VALUES (?, ?)", avatarName, avatarData)
 		if err != nil {
 			return err
@@ -689,6 +690,7 @@ func getIcon(c echo.Context) error {
 	var name string
 	var data []byte
 	err := db.QueryRow("SELECT name, data FROM image WHERE name = ?",
+		// TODO: tuning
 		c.Param("file_name")).Scan(&name, &data)
 	if err == sql.ErrNoRows {
 		return echo.ErrNotFound
