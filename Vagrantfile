@@ -68,7 +68,7 @@ Vagrant.configure("2") do |config|
   # information on available options.
   config.vm.provider "virtualbox" do |vb|
     vb.cpus = 1
-    vb.memory = 1100
+    vb.memory = 1600 # +400MB for bench, +200MB for MySQL and Nginx
   end
 
   # Enable provisioning with a shell script. Additional provisioners such as

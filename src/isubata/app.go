@@ -107,14 +107,16 @@ func getUser(userID int64) (*User, error) {
 	return &u, nil
 }
 
-func addMessage(channelID, userID int64, content string) (int64, error) {
-	res, err := db.Exec(
-		"INSERT INTO message (channel_id, user_id, content, created_at) VALUES (?, ?, ?, NOW())",
-		channelID, userID, content)
-	if err != nil {
-		return 0, err
+func addMessage(channelID, userID int64, content string) error {
+	m := Message{
+		ChannelID: channelID,
+		UserID:    userID,
+		Content:   content,
+		CreatedAt: time.Now(),
 	}
-	return res.LastInsertId()
+	messageCmap.Store(channelID, &m)
+
+	return nil
 }
 
 type Message struct {
@@ -127,9 +129,27 @@ type Message struct {
 
 func queryMessages(chanID, lastID int64) ([]Message, error) {
 	msgs := []Message{}
-	err := db.Select(&msgs, "SELECT * FROM message WHERE id > ? AND channel_id = ? ORDER BY id DESC LIMIT 100",
-		lastID, chanID)
-	return msgs, err
+	// err := db.Select(&msgs, "SELECT * FROM message WHERE id > ? AND channel_id = ? ORDER BY id DESC LIMIT 100",
+	// 	lastID, chanID)
+
+	// ID降順にソート済みであることを利用する
+	{
+		messages, _ := messageCmap.Load(chanID)
+		var cnt int
+		for _, m := range *messages {
+			if cnt >= 100 {
+				break
+			}
+			if !(m.ID > lastID) {
+				break
+			}
+
+			msgs = append(msgs, *m)
+			cnt++
+		}
+	}
+
+	return msgs, nil
 }
 
 func sessUserID(c echo.Context) int64 {
@@ -211,7 +231,31 @@ func getInitialize(c echo.Context) error {
 	db.MustExec("DELETE FROM channel WHERE id > 10")
 	db.MustExec("DELETE FROM message WHERE id > 10000")
 	db.MustExec("DELETE FROM haveread")
+
+	// reset and store MessageMap
+	{
+		initMessageCmap()
+	}
+
 	return c.String(204, "")
+}
+
+func initMessageCmap() {
+	messageCmap = NewMessageCmap()
+
+	messages := []Message{}
+	err := db.Select(&messages, "SELECT * FROM message ORDER BY id ASC")
+	if err != nil {
+		panic(err)
+	}
+	// NOTE: ポインタを渡す場合、一度構造体をコピーすること！
+	for _, m := range messages {
+		foo := m
+		messageCmap.Store(m.ChannelID, &foo)
+	}
+
+	caches, _ := messageCmap.Load(1)
+	fmt.Println("initMessageCmap::", (*caches)[4])
 }
 
 func getIndex(c echo.Context) error {
@@ -346,7 +390,7 @@ func postMessage(c echo.Context) error {
 		chanID = int64(x)
 	}
 
-	if _, err := addMessage(chanID, user.ID, message); err != nil {
+	if err := addMessage(chanID, user.ID, message); err != nil {
 		return err
 	}
 
@@ -355,6 +399,7 @@ func postMessage(c echo.Context) error {
 
 func jsonifyMessage(m Message) (map[string]interface{}, error) {
 	u := User{}
+	// TODO: tuning
 	err := db.Get(&u, "SELECT name, display_name, avatar_icon FROM user WHERE id = ?",
 		m.UserID)
 	if err != nil {
@@ -445,7 +490,7 @@ func fetchUnread(c echo.Context) error {
 		return c.NoContent(http.StatusForbidden)
 	}
 
-	time.Sleep(time.Second)
+	time.Sleep(time.Second * 2)
 
 	channels, err := queryChannels()
 	if err != nil {
@@ -463,18 +508,26 @@ func fetchUnread(c echo.Context) error {
 
 		var cnt int64
 		if lastID > 0 {
-			err = db.Get(&cnt,
-				"SELECT COUNT(*) as cnt FROM message WHERE channel_id = ? AND ? < id",
-				chID, lastID)
+			// err = db.Get(&cnt,
+			// 	"SELECT COUNT(*) as cnt FROM message WHERE channel_id = ? AND id > ?",
+			// 	chID, lastID)
+			messages, _ := messageCmap.Load(chID)
+			for _, m := range *messages {
+				if !(m.ID > lastID) {
+					break
+				}
+				cnt++
+			}
 		} else {
-			// TODO: tuning
-			err = db.Get(&cnt,
-				"SELECT COUNT(*) as cnt FROM message WHERE channel_id = ?",
-				chID)
+			// err = db.Get(&cnt,
+			// 	"SELECT COUNT(*) as cnt FROM message WHERE channel_id = ?",
+			// 	chID)
+			cnt = messageCmap.Count(chID)
 		}
-		if err != nil {
-			return err
-		}
+		// fmt.Printf("ASDDDDDDDDDDDD %d \n", cnt)
+		// if err != nil {
+		// 	return err
+		// }
 		r := map[string]interface{}{
 			"channel_id": chID,
 			"unread":     cnt}
@@ -508,10 +561,8 @@ func getHistory(c echo.Context) error {
 
 	const N = 20
 	var cnt int64
-	err = db.Get(&cnt, "SELECT COUNT(*) as cnt FROM message WHERE channel_id = ?", chID)
-	if err != nil {
-		return err
-	}
+	cnt = messageCmap.Count(chID)
+
 	maxPage := int64(cnt+N-1) / N
 	if maxPage == 0 {
 		maxPage = 1
@@ -521,11 +572,29 @@ func getHistory(c echo.Context) error {
 	}
 
 	messages := []Message{}
-	err = db.Select(&messages,
-		"SELECT * FROM message WHERE channel_id = ? ORDER BY id DESC LIMIT ? OFFSET ?",
-		chID, N, (page-1)*N)
-	if err != nil {
-		return err
+	// err = db.Select(&messages,
+	// 	"SELECT * FROM message WHERE channel_id = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+	// 	chID, N, (page-1)*N)
+	// if err != nil {
+	// 	return err
+	// }
+	{
+		offset := int((page - 1) * N)
+		caches, _ := messageCmap.Load(chID)
+		var addedCnt int
+		for i, m := range *caches {
+			// OFFSET filter
+			if i < offset {
+				continue
+			}
+			// LIMIT filter
+			if addedCnt < N {
+				messages = append(messages, *m)
+				addedCnt++
+			} else {
+				break
+			}
+		}
 	}
 
 	mjson := make([]map[string]interface{}, 0)
@@ -543,6 +612,7 @@ func getHistory(c echo.Context) error {
 		return err
 	}
 
+	// TODO: slow render
 	return c.Render(http.StatusOK, "history", map[string]interface{}{
 		"ChannelID": chID,
 		"Channels":  channels,
@@ -731,10 +801,17 @@ func tRange(a, b int64) []int64 {
 	return r
 }
 
+var messageCmap *MessageCmap
+
 func main() {
 	go func() {
 		log.Println(http.ListenAndServe(":6060", nil))
 	}()
+
+	// create my caches
+	{
+		initMessageCmap()
+	}
 
 	e := echo.New()
 	funcs := template.FuncMap{

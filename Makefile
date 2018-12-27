@@ -1,4 +1,4 @@
-GOPATH := /home/isucon/isubata/webapp/go
+GOPATH := /home/isucon/isubata/webapp/go:/home/isucon/go
 export GOPATH
 
 build:
