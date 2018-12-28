@@ -416,6 +416,44 @@ func jsonifyMessage(m Message) (map[string]interface{}, error) {
 	return r, nil
 }
 
+func jsonifyMessageMulti(msgs *[]Message) ([]map[string]interface{}, error) {
+	us := []User{}
+	messages := *msgs
+
+	// この中でreverseしないとNG。呼び出し元でやっちゃ駄目。
+	messages = funk.Reverse(messages).([]Message)
+
+	userIDs := funk.Map(messages, func(x Message) int64 {
+		return x.UserID
+	}).([]int64)
+
+	s := "SELECT id, name, display_name, avatar_icon FROM user WHERE id IN (?)"
+	q, vs, err := sqlx.In(s, userIDs)
+	q = db.Rebind(q)
+	err = db.Select(&us, q, vs...)
+	if err != nil {
+		return nil, err
+	}
+
+	// tomap
+	userIDUserMap := funk.Map(us, func(x User) (int64, User) {
+		return x.ID, x
+	}).(map[int64]User)
+
+	var result []map[string]interface{}
+	for _, m := range messages {
+		r := make(map[string]interface{})
+		r["id"] = m.ID
+		r["user"] = userIDUserMap[m.UserID]
+		r["date"] = m.CreatedAt.Format("2006/01/02 15:04:05")
+		r["content"] = m.Content
+
+		result = append(result, r)
+	}
+
+	return result, nil
+}
+
 func getMessage(c echo.Context) error {
 	userID := sessUserID(c)
 	if userID == 0 {
@@ -436,15 +474,7 @@ func getMessage(c echo.Context) error {
 		return err
 	}
 
-	response := make([]map[string]interface{}, 0)
-	for i := len(messages) - 1; i >= 0; i-- {
-		m := messages[i]
-		r, err := jsonifyMessage(m)
-		if err != nil {
-			return err
-		}
-		response = append(response, r)
-	}
+	response, _ := jsonifyMessageMulti(&messages)
 
 	if len(messages) > 0 {
 		_, err := db.Exec("INSERT INTO haveread (user_id, channel_id, message_id, updated_at, created_at)"+

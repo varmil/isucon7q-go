@@ -27,6 +27,11 @@ Vagrant.configure("2") do |config|
       owner: "isucon",
       group: "isucon",
       rsync__args: ["-av", "--include=Makefile", "--include=src/***", "--exclude=*"]
+
+    node.vm.provider "virtualbox" do |vb|
+      vb.cpus = 1
+      vb.memory = 1000
+    end
   end
  
   config.vm.define "i7q_2" do |node|
@@ -34,6 +39,12 @@ Vagrant.configure("2") do |config|
     node.vm.box_url = "file://./base.box"
 
     node.vm.network "private_network", ip: "192.168.33.27"
+
+
+    node.vm.provider "virtualbox" do |vb|
+      vb.cpus = 3
+      vb.memory = 1200
+    end
   end
 
   # Disable automatic box update checking. If you disable this, then
