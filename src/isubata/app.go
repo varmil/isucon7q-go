@@ -26,6 +26,8 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/middleware"
+
+	funk "github.com/thoas/go-funk"
 )
 
 const (
@@ -463,7 +465,7 @@ func queryChannels() ([]int64, error) {
 	return res, err
 }
 
-func queryHaveRead(userID, chID int64) (int64, error) {
+func queryHaveRead(userID int64, chIDs []int64) (map[int64]int64, error) {
 	type HaveRead struct {
 		UserID    int64     `db:"user_id"`
 		ChannelID int64     `db:"channel_id"`
@@ -471,18 +473,28 @@ func queryHaveRead(userID, chID int64) (int64, error) {
 		UpdatedAt time.Time `db:"updated_at"`
 		CreatedAt time.Time `db:"created_at"`
 	}
-	h := HaveRead{}
+	h := []HaveRead{}
 
-	// TODO: tuning
-	err := db.Get(&h, "SELECT * FROM haveread WHERE user_id = ? AND channel_id = ?",
-		userID, chID)
+	arg := map[string]interface{}{
+		"userID": userID,
+		"chIDs":  chIDs,
+	}
+	query, args, err := sqlx.Named("SELECT * FROM haveread WHERE user_id = :userID AND channel_id IN (:chIDs)", arg)
+	query, args, err = sqlx.In(query, args...)
+	query = db.Rebind(query)
+	db.Select(&h, query, args...)
 
 	if err == sql.ErrNoRows {
-		return 0, nil
+		return map[int64]int64{}, nil
 	} else if err != nil {
-		return 0, err
+		panic("DBERROR")
 	}
-	return h.MessageID, nil
+
+	lastIDmap := funk.Map(h, func(x HaveRead) (int64, int64) {
+		return x.ChannelID, x.MessageID
+	}).(map[int64]int64) // map[chID]lastID
+
+	return lastIDmap, nil
 }
 
 func fetchUnread(c echo.Context) error {
@@ -500,18 +512,15 @@ func fetchUnread(c echo.Context) error {
 
 	resp := []map[string]interface{}{}
 
-	for _, chID := range channels {
-		// TODO: tuning
-		lastID, err := queryHaveRead(userID, chID)
-		if err != nil {
-			return err
-		}
+	lastIDMap, err := queryHaveRead(userID, channels)
+	if err != nil {
+		return err
+	}
 
+	for _, chID := range channels {
 		var cnt int64
-		if lastID > 0 {
-			// err = db.Get(&cnt,
-			// 	"SELECT COUNT(*) as cnt FROM message WHERE channel_id = ? AND id > ?",
-			// 	chID, lastID)
+
+		if lastID, ok := lastIDMap[chID]; ok && lastID > 0 {
 			messages, _ := messageCmap.Load(chID)
 			for _, m := range *messages {
 				if !(m.ID > lastID) {
@@ -520,15 +529,9 @@ func fetchUnread(c echo.Context) error {
 				cnt++
 			}
 		} else {
-			// err = db.Get(&cnt,
-			// 	"SELECT COUNT(*) as cnt FROM message WHERE channel_id = ?",
-			// 	chID)
 			cnt = messageCmap.Count(chID)
 		}
-		// fmt.Printf("ASDDDDDDDDDDDD %d \n", cnt)
-		// if err != nil {
-		// 	return err
-		// }
+
 		r := map[string]interface{}{
 			"channel_id": chID,
 			"unread":     cnt}
