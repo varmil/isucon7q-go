@@ -473,6 +473,7 @@ func queryHaveRead(userID, chID int64) (int64, error) {
 	}
 	h := HaveRead{}
 
+	// TODO: tuning
 	err := db.Get(&h, "SELECT * FROM haveread WHERE user_id = ? AND channel_id = ?",
 		userID, chID)
 

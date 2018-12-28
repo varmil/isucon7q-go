@@ -17,6 +17,25 @@ Vagrant.configure("2") do |config|
   # boxes at https://vagrantcloud.com/search.
   config.vm.box = box
 
+  config.vm.define "i7q_1" do |node|
+    node.vm.box = "i7q_1"
+    node.vm.box_url = "file://./base.box"
+
+    node.vm.network "private_network", ip: "192.168.33.17"
+
+    node.vm.synced_folder "./", "/home/isucon/isubata/webapp/go/", type: "rsync",
+      owner: "isucon",
+      group: "isucon",
+      rsync__args: ["-av", "--include=Makefile", "--include=src/***", "--exclude=*"]
+  end
+ 
+  config.vm.define "i7q_2" do |node|
+    node.vm.box = "i7q_2"
+    node.vm.box_url = "file://./base.box"
+
+    node.vm.network "private_network", ip: "192.168.33.27"
+  end
+
   # Disable automatic box update checking. If you disable this, then
   # boxes will only be checked for updates when the user runs
   # `vagrant box outdated`. This is not recommended.
@@ -35,7 +54,7 @@ Vagrant.configure("2") do |config|
 
   # Create a private network, which allows host-only access to the machine
   # using a specific IP.
-  config.vm.network "private_network", ip: "192.168.33.17"
+  # config.vm.network "private_network", ip: "192.168.33.17"
 
   # Create a public network, which generally matched to bridged network.
   # Bridged networks make the machine appear as another physical device on
@@ -46,11 +65,12 @@ Vagrant.configure("2") do |config|
   # the path on the host to the actual folder. The second argument is
   # the path on the guest to mount the folder. And the optional third
   # argument is a set of non-required options.
+  config.vm.synced_folder '.', '/vagrant', disabled: true
   # config.vm.synced_folder "../data", "/vagrant_data"
-  config.vm.synced_folder "./", "/home/isucon/isubata/webapp/go/", type: "rsync",
-    owner: "isucon",
-    group: "isucon",
-    rsync__args: ["-av", "--include=Makefile", "--include=src/***", "--exclude=*"]
+  # config.vm.synced_folder "./", "/home/isucon/isubata/webapp/go/", type: "rsync",
+  #   owner: "isucon",
+  #   group: "isucon",
+  #   rsync__args: ["-av", "--include=Makefile", "--include=src/***", "--exclude=*"]
 
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.
@@ -68,7 +88,7 @@ Vagrant.configure("2") do |config|
   # information on available options.
   config.vm.provider "virtualbox" do |vb|
     vb.cpus = 1
-    vb.memory = 1600 # +400MB for bench, +200MB for MySQL and Nginx
+    vb.memory = 1000 # +400MB for bench, +200MB for MySQL and Nginx
   end
 
   # Enable provisioning with a shell script. Additional provisioners such as
